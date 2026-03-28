@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
-    <title>אלפי - שדרוג מד"ר</title>
+    <title>אבי - שדרוג מד"ר</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         html, body { height: 100%; overflow: hidden; }
@@ -268,7 +268,7 @@
 <div class="pause-overlay" id="pauseOverlay1">
     <div class="pause-popup">
         <h3>שדה כיוונים</h3>
-        <button class="link-btn" onclick="openMoodleAndResume('https://opal.openu.ac.il/mod/combopage/view.php?id=6753291&from=nav')">פתחי את העמוד</button>
+        <button class="link-btn" onclick="openMoodleAndResume('https://shir-openu.github.io/direction_field_3/')">פתחי את העמוד</button>
         <br>
         <button class="continue-btn" id="continueBtn1" onclick="continueVideo()">המשיכי לצפות</button>
     </div>
@@ -330,9 +330,9 @@
     head = new TalkingHead( nodeAvatar, {
       lipsyncModules: ["en"],
       cameraView: "head",
-      cameraRotateEnable: false,
+      cameraRotateEnable: true,
       cameraPanEnable: false,
-      cameraZoomEnable: false
+      cameraZoomEnable: true
     });
 
     // Load avatar from local file
@@ -627,23 +627,20 @@
     // PiP attempted after (async, best effort).
     // ==========================================
     function openMoodleAndResume(url) {
-        // STEP 1: open Moodle FIRST (user gesture = not blocked)
-        moodleWin = window.open(url, 'courseWindow');
+        // v30i: open in background iframe instead of new window
+        bgIframe.src = url;
 
-        // STEP 2: stop cycling
+        // Stop cycling
         stopTabCycling();
 
-        // STEP 3: resume video + try PiP (async, fine)
-        vid.play().then(function() {
-            tryPiP();
-        }).catch(function() {});
+        // Resume audio
+        vid.play();
 
-        // STEP 4: hide overlay + scroll AFTER 2s delay
+        // Hide overlay
         setTimeout(function() {
             document.getElementById('pauseOverlay1').classList.remove('active');
-            scrollFirstPage();
             showScrollToast();
-        }, 2000);
+        }, 1000);
     }
 
     function continueVideo() {
@@ -666,11 +663,11 @@
     var pauseTriggered = false;
 
     var autoNav = [
-        { time: 57,  url: 'https://opal.openu.ac.il/mod/combopage/view.php?id=6753296&from=nav',
+        { time: 57,  url: 'https://shir-openu.github.io/direction_field_3/',
           scroll: true, scrollBack: false, triggered: false },
-        { time: 74,  url: 'https://opal.openu.ac.il/mod/combopage/view.php?id=6841982&from=nav',
+        { time: 74,  url: 'https://shir-openu.github.io/differential_linear_operator_addition/',
           scroll: false, scrollBack: false, triggered: false },
-        { time: 85,  url: 'https://opal.openu.ac.il/mod/combopage/view.php?id=6856814&from=nav',
+        { time: 85,  url: 'https://shir-openu.github.io/ODE-20218-2nd-DF7/',
           scroll: true, scrollBack: true, triggered: false },
         { time: 90,  url: 'https://shir-openu.github.io/mmn-13-Q-2/',
           scroll: true, scrollBack: false, triggered: false }
@@ -738,19 +735,15 @@
             }, 10000);
         }
 
-        // --- Auto-navigate at scheduled times ---
+        // --- Auto-navigate at scheduled times (v30i: iframe) ---
         for (var i = 0; i < autoNav.length; i++) {
             var nav = autoNav[i];
             if (!nav.triggered && t >= nav.time) {
                 nav.triggered = true;
-                if (moodleWin && !moodleWin.closed) {
-                    try {
-                        moodleWin.location.href = nav.url;
-                        if (nav.scroll) {
-                            trySlowScroll(moodleWin, nav.scrollBack);
-                            showScrollToast();
-                        }
-                    } catch(e) {}
+                // v30i: change background iframe instead of window
+                bgIframe.src = nav.url;
+                if (nav.scroll) {
+                    showScrollToast();
                 }
             }
         }
