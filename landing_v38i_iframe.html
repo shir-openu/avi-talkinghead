@@ -350,16 +350,14 @@
       lipsyncLang: 'en'
     });
 
-    // Make background transparent (must be after showAvatar which creates renderer + scene)
+    // Background: don't touch Three.js internals (breaks audio).
+    // Use CSS on the avatar container's canvas instead.
     try {
-      if (head.renderer) {
-        head.renderer.setClearColor(0x000000, 0);
+      const avatarCanvas = document.querySelector('#avatar canvas');
+      if (avatarCanvas) {
+        avatarCanvas.style.borderRadius = '14px';
       }
-      if (head.scene) {
-        head.scene.background = null;
-        head.scene.environment = null;
-      }
-    } catch(e) { console.log('Transparent background setup:', e.message); }
+    } catch(e) {}
 
     // ---- Initialize HeadAudio ----
     await head.audioCtx.audioWorklet.addModule("./assets/headworklet.min.mjs");
