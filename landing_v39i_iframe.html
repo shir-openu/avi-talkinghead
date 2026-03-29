@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>אבי - שדרוג מד"ר</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100%; overflow: hidden; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+            background: #fff;
+        }
+
+        /* --- Background iframe (direction field) --- */
+        #bg-iframe {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            width: 100%; height: 100%;
+            border: none;
+            z-index: 0;
+        }
+
+        /* --- Floating Danit --- */
+        .draggable-video-container {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            z-index: 10000;
+            cursor: move;
+            transition: box-shadow 0.2s;
+        }
+        .draggable-video-container:hover {
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+        .draggable-video-container video,
+        .draggable-video-container #avatar {
+            width: 250px;
+            height: 250px;
+            border-radius: 14px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            border: 3px solid #fff;
+            display: block;
+            overflow: hidden;
+        }
+        .drag-hint {
+            position: absolute;
+            top: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 3px 10px;
+            border-radius: 5px;
+            font-size: 0.7em;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .draggable-video-container:hover .drag-hint {
+            opacity: 1;
+        }
+
+        /* --- Comeback hint --- */
+        .comeback-hint {
+            position: absolute;
+            top: -35px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #e74c3c;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            font-weight: bold;
+            white-space: nowrap;
+            display: none;
+            animation: hintPulse 1s infinite;
+            z-index: 10;
+        }
+        .comeback-hint.show { display: block; }
+        @keyframes hintPulse {
+            0%, 100% { transform: translateX(-50%) scale(1); }
+            50% { transform: translateX(-50%) scale(1.05); }
+        }
+
+        /* --- Teaser overlay (before click) --- */
+        #teaser-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.25);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 14px;
+            cursor: pointer;
+            z-index: 10;
+            transition: opacity 0.5s;
+        }
+        #teaser-overlay .pulse-ring {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: 3px solid rgba(255,255,255,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: pulse 1.8s ease-in-out infinite;
+            position: relative;
+        }
+        #teaser-overlay .pulse-ring::before {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.4);
+            animation: ripple 1.8s ease-out infinite;
+        }
+        #teaser-overlay .play-icon {
+            width: 0;
+            height: 0;
+            border-style: solid;
+            border-width: 12px 0 12px 20px;
+            border-color: transparent transparent transparent #fff;
+            margin-left: 4px;
+        }
+        #teaser-overlay .teaser-text {
+            color: #fff;
+            font-size: 14px;
+            margin-top: 8px;
+            text-shadow: 0 1px 4px rgba(0,0,0,0.7);
+            animation: fadeText 2.5s ease-in-out infinite;
+            text-align: center;
+            direction: rtl;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,255,255,0.4); }
+            50% { transform: scale(1.08); box-shadow: 0 0 20px 8px rgba(255,255,255,0.15); }
+        }
+        @keyframes ripple {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(1.6); opacity: 0; }
+        }
+        @keyframes fadeText {
+            0%, 100% { opacity: 0.7; }
+            50% { opacity: 1; }
+        }
+
+        /* Gentle bounce while waiting for click */
+        .draggable-video-container.waiting {
+            animation: bounce 2s ease-in-out infinite;
+        }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-6px); }
+        }
+
+        /* --- Pause overlay --- */
+        .pause-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 20000;
+            justify-content: center;
+            align-items: center;
+        }
+        .pause-overlay.active { display: flex; }
+        .pause-popup {
+            background: white;
+            padding: 30px 40px;
+            border-radius: 15px;
+            text-align: center;
+            max-width: 500px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            animation: popIn 0.3s ease-out;
+        }
+        @keyframes popIn {
+            from { transform: scale(0.8); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        .pause-popup h3 {
+            color: #2c3e50;
+            margin-top: 0;
+            font-size: 1.3em;
+            margin-bottom: 15px;
+        }
+        .pause-popup .link-btn {
+            display: inline-block;
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 12px;
+            font-weight: bold;
+            font-size: 1.15em;
+            margin: 10px 5px;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(102,126,234,0.4);
+            animation: glowPulse 2s ease-in-out infinite;
+            cursor: pointer;
+            border: none;
+        }
+        .pause-popup .link-btn:hover {
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 0 8px 25px rgba(102,126,234,0.6);
+        }
+        @keyframes glowPulse {
+            0%, 100% { box-shadow: 0 4px 15px rgba(102,126,234,0.4); }
+            50% { box-shadow: 0 4px 25px rgba(102,126,234,0.7); }
+        }
+        .pause-popup .continue-btn {
+            display: none;
+            padding: 10px 20px;
+            background: #95a5a6;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9em;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: all 0.2s;
+        }
+        .pause-popup .continue-btn.visible { display: inline-block; }
+        .pause-popup .continue-btn:hover { background: #7f8c8d; }
+
+        /* --- Progress bar --- */
+        #progress-bar {
+            position: fixed;
+            bottom: 0; left: 0;
+            height: 4px;
+            background: #6366f1;
+            z-index: 99999;
+            transition: width 0.3s;
+            width: 0%;
+        }
+
+        /* --- Scroll-down toast (shown briefly on page changes) --- */
+        #scroll-toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.75);
+            color: #fff;
+            padding: 10px 24px;
+            border-radius: 10px;
+            font-size: 1em;
+            z-index: 30000;
+            opacity: 0;
+            transition: opacity 0.5s;
+            pointer-events: none;
+            direction: rtl;
+        }
+        #scroll-toast.show { opacity: 1; }
+    </style>
+</head>
+<body>
+
+<!-- Background: direction field -->
+<iframe id="bg-iframe"
+        src="https://shir-openu.github.io/example_second_order_direction_field_enrichment/"
+        sandbox="allow-scripts allow-same-origin allow-popups"></iframe>
+
+<!-- Pause overlay (t=40) -->
+<div class="pause-overlay" id="pauseOverlay1">
+    <div class="pause-popup">
+        <h3>שדה כיוונים</h3>
+        <button class="link-btn" onclick="openMoodleAndResume('https://shir-openu.github.io/direction_field_3/')">פתחי את העמוד</button>
+        <br>
+        <button class="continue-btn" id="continueBtn1" onclick="continueVideo()">המשיכי לצפות</button>
+    </div>
+</div>
+
+<!-- Floating Alphi — upper-right corner -->
+<div class="draggable-video-container waiting" id="floatingVideo">
+    <div class="drag-hint">גררי אותי</div>
+    <div class="comeback-hint" id="comebackHint">הילה, חזרי!</div>
+    <div id="teaser-overlay">
+        <div class="pulse-ring">
+            <div class="play-icon"></div>
+        </div>
+        <div class="teaser-text">לחצי לשמוע אותי</div>
+    </div>
+    <div id="avatar"></div>
+    <video id="pip-video" style="display:none;" playsinline muted></video>
+    <div id="avatar-controls" style="display:none; padding:4px 8px; background:rgba(0,0,0,0.5); border-radius:0 0 14px 14px;">
+        <div id="seek-bar" onclick="seekClick(event)" style="width:100%; height:8px; background:rgba(255,255,255,0.2); border-radius:4px; cursor:pointer; margin-bottom:4px; position:relative;">
+            <div id="seek-progress" style="height:100%; background:rgba(255,255,255,0.6); border-radius:4px; width:0%; pointer-events:none;"></div>
+        </div>
+        <div style="text-align:center;">
+            <button onclick="window._avatarToggle && window._avatarToggle()" style="background:none; border:1px solid rgba(255,255,255,0.5); color:white; padding:3px 12px; border-radius:8px; cursor:pointer; font-size:12px;" id="btn-playpause">⏸</button>
+            <button onclick="window._avatarStop && window._avatarStop()" style="background:none; border:1px solid rgba(255,255,255,0.5); color:white; padding:3px 12px; border-radius:8px; cursor:pointer; font-size:12px;">⏹</button>
+            <span id="time-display" style="color:rgba(255,255,255,0.6); font-size:10px; margin-left:6px;">0:00</span>
+        </div>
+    </div>
+</div>
+
+<!-- Scroll-down toast -->
+<div id="scroll-toast">גללי למטה בעמוד</div>
+
+<!-- Progress bar -->
+<div id="progress-bar"></div>
+
+<!-- ============================================================ -->
+<!-- AVATAR MODULE (TalkingHead + HeadAudio) — separate from v24  -->
+<!-- If this crashes, v24 features still work via the vid adapter -->
+<!-- ============================================================ -->
+<script type="importmap">
+{ "imports":
+  {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js/+esm",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
+    "talkinghead": "https://cdn.jsdelivr.net/gh/met4citizen/TalkingHead@1.7/modules/talkinghead.mjs"
+  }
+}
+</script>
+
+<script type="module">
+  import { TalkingHead } from "talkinghead";
+  import { HeadAudio } from "./assets/headaudio.min.mjs";
+
+  let head = null;
+  let headaudio = null;
+  let audioBuffer = null;
+  let audioStartTime = 0;
+  let isPlaying = false;
+  let isPaused = false;
+  let pauseTime = 0;
+  let audioDuration = 105;
+
+  // ---- Initialize TalkingHead ----
+  try {
+    const nodeAvatar = document.getElementById('avatar');
+    head = new TalkingHead( nodeAvatar, {
+      lipsyncModules: ["en"],
+      cameraView: "head",
+      cameraRotateEnable: false,
+      cameraPanEnable: false,
+      cameraZoomEnable: false
+    });
+
+    // Load avatar from local file
+    await head.showAvatar({
+      url: './assets/avaturn.glb',
+      body: 'F',
+      avatarMood: 'neutral',
+      lipsyncLang: 'en'
+    });
+
+    // Background: don't touch Three.js internals (breaks audio).
+    // Use CSS on the avatar container's canvas instead.
+    try {
+      const avatarCanvas = document.querySelector('#avatar canvas');
+      if (avatarCanvas) {
+        avatarCanvas.style.borderRadius = '14px';
+      }
+    } catch(e) {}
+
+    // ---- Initialize HeadAudio ----
+    await head.audioCtx.audioWorklet.addModule("./assets/headworklet.min.mjs");
+    headaudio = new HeadAudio(head.audioCtx, {
+      parameterData: {
+        vadGateActiveDb: -40,
+        vadGateInactiveDb: -60
+      }
+    });
+    await headaudio.loadModel("./assets/model-en-mixed.bin");
+
+    // Connect HeadAudio to TalkingHead's speech audio
+    head.audioSpeechGainNode.connect(headaudio);
+
+    // HeadAudio viseme callback → update avatar blend shapes
+    headaudio.onvalue = (key, value) => {
+      Object.assign( head.mtAvatar[ key ], { newvalue: value, needsUpdate: true });
+    };
+
+    // Link HeadAudio update to animation loop
+    head.opt.update = headaudio.update.bind(headaudio);
+
+    // Preload audio
+    const response = await fetch('./assets/audio.mp3');
+    const arrayBuffer = await response.arrayBuffer();
+    audioBuffer = await head.audioCtx.decodeAudioData(arrayBuffer);
+    audioDuration = audioBuffer.duration;
+
+    console.log('TalkingHead + HeadAudio ready. Duration:', audioDuration);
+
+    // ---- Canvas-to-PiP setup ----
+    try {
+      const avatarDiv = document.getElementById('avatar');
+      const threeCanvas = avatarDiv.querySelector('canvas');
+      if (threeCanvas) {
+        const stream = threeCanvas.captureStream(25);
+        const pipVideo = document.getElementById('pip-video');
+        pipVideo.srcObject = stream;
+        pipVideo.play();
+        window._pipVideo = pipVideo;
+        console.log('PiP video stream ready');
+      }
+    } catch(pipErr) {
+      console.log('PiP setup failed (non-critical):', pipErr.message);
+    }
+
+  } catch(err) {
+    console.error('Avatar module error:', err);
+  }
+
+  // ---- Audio buffer slicing (enables seek/resume from any position) ----
+  function sliceAudioBuffer(buffer, startSeconds) {
+    if (!buffer || startSeconds <= 0) return buffer;
+    const sr = buffer.sampleRate;
+    const startSample = Math.floor(startSeconds * sr);
+    const newLength = buffer.length - startSample;
+    if (newLength <= 0) return null;
+    const newBuffer = new AudioBuffer({
+      length: newLength,
+      numberOfChannels: buffer.numberOfChannels,
+      sampleRate: sr
+    });
+    for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+      newBuffer.copyToChannel(buffer.getChannelData(ch).subarray(startSample), ch);
+    }
+    return newBuffer;
+  }
+
+  // ---- Expose play/pause/time/seek to v24 via global adapter ----
+  let audioOffset = 0; // how far into the original audio we started
+
+  window._avatarPlay = function(fromTime) {
+    if (!head || !audioBuffer) return;
+    // Stop any current playback first
+    try { head.stopSpeaking(); } catch(e) {}
+
+    fromTime = fromTime || 0;
+    audioOffset = fromTime;
+    const sliced = sliceAudioBuffer(audioBuffer, fromTime);
+    if (!sliced) return;
+
+    const audio = {
+      audio: sliced,
+      words: [], wtimes: [], wdurations: [],
+      markers: [], mtimes: []
+    };
+    audioStartTime = head.audioCtx.currentTime;
+    head.speakAudio(audio);
+    isPlaying = true;
+    isPaused = false;
+  };
+
+  window._avatarPause = function() {
+    if (!head || !isPlaying) return;
+    pauseTime = audioOffset + (head.audioCtx.currentTime - audioStartTime);
+    head.stopSpeaking();
+    isPlaying = false;
+    isPaused = true;
+  };
+
+  window._avatarResume = function() {
+    if (isPlaying) return;
+    if (isPaused) {
+      window._avatarPlay(pauseTime);
+    } else {
+      window._avatarPlay(0);
+    }
+  };
+
+  window._avatarSeek = function(timeSeconds) {
+    var wasPlaying = isPlaying;
+    if (isPlaying) { try { head.stopSpeaking(); } catch(e) {} }
+    if (wasPlaying) {
+      window._avatarPlay(timeSeconds);
+    } else {
+      pauseTime = timeSeconds;
+      isPaused = true;
+    }
+  };
+
+  window._avatarGetTime = function() {
+    if (isPlaying && head) return audioOffset + (head.audioCtx.currentTime - audioStartTime);
+    if (isPaused) return pauseTime;
+    return 0;
+  };
+
+  window._avatarDuration = audioDuration;
+  window._avatarIsPlaying = function() { return isPlaying; };
+
+  window._avatarToggle = function() {
+    if (isPlaying) {
+      window._avatarPause();
+      document.getElementById('btn-playpause').textContent = '▶';
+    } else {
+      window._avatarResume();
+      document.getElementById('btn-playpause').textContent = '⏸';
+    }
+  };
+
+  window._avatarStop = function() {
+    if (head) try { head.stopSpeaking(); } catch(e) {}
+    isPlaying = false;
+    isPaused = false;
+    pauseTime = 0;
+    audioOffset = 0;
+    document.getElementById('btn-playpause').textContent = '▶';
+    var bar = document.getElementById('seek-progress');
+    if (bar) bar.style.width = '0%';
+  };
+
+  // ============================================================
+  // FUTURE: USER VOICE INPUT (uncomment when ready)
+  // - User speaks into microphone
+  // - Speech-to-text via browser SpeechRecognition or Whisper
+  // - Text sent to AI module, avatar responds
+  // ============================================================
+  // window._avatarStartListening = function() { /* TODO */ };
+  // window._avatarStopListening = function() { /* TODO */ };
+
+  // ============================================================
+  // FUTURE: AI CHAT CONNECTION (uncomment when ready)
+  // - Connect to GPT / Gemini / Claude via API
+  // - Reference: CODE_01.txt has OpenAI integration example
+  // - TalkingHead supports: head.speakText() for TTS responses
+  // ============================================================
+  // window._avatarConnectAI = function(apiKey, model) { /* TODO */ };
+  // window._avatarAskAI = function(question) { /* TODO */ };
+
+  // ============================================================
+  // FUTURE: USER RECORDING MODE (uncomment when ready)
+  // - User records voice, avatar mirrors mouth movements
+  // - Like VU-VRM demo (mic-driven lip sync)
+  // ============================================================
+  // window._avatarMirrorMode = function() { /* TODO */ };
+
+</script>
+
+<!-- ============================================================ -->
+<!-- V24 ORIGINAL SCRIPT — with minimal vid adapter               -->
+<!-- ============================================================ -->
+<script>
+    // Adapter: make v24 code work with TalkingHead via global functions
+    var vid = {
+      get currentTime() { return window._avatarGetTime ? window._avatarGetTime() : 0; },
+      set currentTime(v) { /* seeking not supported yet */ },
+      get duration() { return window._avatarDuration || 105; },
+      get paused() { return window._avatarIsPlaying ? !window._avatarIsPlaying() : true; },
+      play: function() {
+        if (window._avatarResume) window._avatarResume();
+        return Promise.resolve();
+      },
+      pause: function() {
+        if (window._avatarPause) window._avatarPause();
+      },
+      loop: false,
+      muted: false,
+      addEventListener: function(event, fn) {
+        // timeupdate: poll instead
+        if (event === 'timeupdate') {
+          setInterval(function() { if (!vid.paused) fn(); }, 250);
+        }
+        if (event === 'seeking') {
+          // not supported for now
+        }
+      },
+      requestPictureInPicture: function() {
+        var pv = window._pipVideo;
+        if (pv && document.pictureInPictureEnabled && !document.pictureInPictureElement) {
+          return pv.requestPictureInPicture().catch(function(e) { console.log('PiP failed:', e.message); });
+        }
+        return Promise.resolve();
+      }
+    };
+    var videoContainer = document.getElementById('floatingVideo');
+    var teaserOverlay = document.getElementById('teaser-overlay');
+    var bgIframe = document.getElementById('bg-iframe');
+    var progressBar = document.getElementById('progress-bar');
+    var scrollToast = document.getElementById('scroll-toast');
+    var moodleWin = null;
+    var started = false;
+
+    // ==========================================
+    // Background preset cycling (before Moodle)
+    // The direction field page has preset buttons
+    // (button.presets) — not tabs.
+    // We cycle through them every 10 seconds.
+    // Method 1: postMessage with { action:'clickPreset', index:N }
+    //   — requires a listener on the GitHub Pages side.
+    // Method 2: direct DOM access (same-origin only).
+    // Stops when video reaches t=40.
+    // ==========================================
+    var bgBaseUrl = 'https://shir-openu.github.io/example_second_order_direction_field_enrichment/';
+    var currentPreset = 0;
+    var numPresets = 3;
+    var tabCycleInterval = null;
+
+    function cycleBackgroundTab() {
+        currentPreset = (currentPreset + 1) % numPresets;
+
+        // Method 1: postMessage (works if page has listener)
+        try {
+            bgIframe.contentWindow.postMessage(
+                { action: 'clickPreset', index: currentPreset },
+                '*'
+            );
+        } catch(e) {}
+
+        // Method 2: direct DOM — click the preset button
+        try {
+            var presetBtns = bgIframe.contentDocument.querySelectorAll('button.presets, .presets button');
+            if (presetBtns.length > currentPreset) {
+                presetBtns[currentPreset].click();
+            }
+        } catch(e) {}
+    }
+
+    // Start cycling presets every 10 seconds
+    tabCycleInterval = setInterval(cycleBackgroundTab, 10000);
+
+    function stopTabCycling() {
+        if (tabCycleInterval) {
+            clearInterval(tabCycleInterval);
+            tabCycleInterval = null;
+        }
+    }
+
+    // ==========================================
+    // Scroll-down toast
+    // Briefly shows "גללי למטה בעמוד" when
+    // a new page opens. User may glance at the
+    // original tab or see it if they switch back.
+    // ==========================================
+    function showScrollToast() {
+        scrollToast.classList.add('show');
+        setTimeout(function() {
+            scrollToast.classList.remove('show');
+        }, 3000);
+    }
+
+    // ==========================================
+    // PiP helpers
+    // Firefox requires video to be actually playing
+    // before requestPictureInPicture() works.
+    // Chrome/Edge are more lenient.
+    // ==========================================
+    function tryPiP() {
+        if (!document.pictureInPictureEnabled || document.pictureInPictureElement) return Promise.resolve();
+        return vid.requestPictureInPicture().then(function() {
+        }).catch(function(err) {
+        });
+    }
+
+    // If user exits PiP manually, re-enter on next click
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.pause-overlay')) return;
+        if (e.target.closest('#teaser-overlay')) return;
+        if (started && vid.currentTime > 0 && !vid.paused && !document.pictureInPictureElement) {
+            tryPiP();
+        }
+    });
+
+    // ==========================================
+    // Click teaser to start (with sound + PiP)
+    // Wait for vid.play() to resolve THEN request
+    // PiP — Firefox needs this.
+    // ==========================================
+    teaserOverlay.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (started) return;
+        started = true;
+
+        teaserOverlay.style.opacity = '0';
+        setTimeout(function() { teaserOverlay.style.display = 'none'; }, 500);
+        videoContainer.classList.remove('waiting');
+
+        // Show play/pause controls
+        var ctrl = document.getElementById('avatar-controls');
+        if (ctrl) ctrl.style.display = 'block';
+
+        vid.loop = false;
+        vid.currentTime = 0;
+        vid.muted = false;
+
+        // vid.play() returns a Promise — wait for it,
+        // then request PiP (Firefox needs video playing first)
+        var playPromise = vid.play();
+        if (playPromise && playPromise.then) {
+            playPromise.then(function() {
+                tryPiP();
+            }).catch(function() {
+                // play failed — try PiP anyway
+                tryPiP();
+            });
+        } else {
+            // Old browsers: play() doesn't return a Promise
+            tryPiP();
+        }
+    });
+
+    // ==========================================
+    // Moodle link: open in new tab
+    // v24 (based on v12): window.open is the VERY
+    // FIRST call (synchronous, user-gesture context).
+    // This gives us moodleWin ref for auto-nav.
+    // Overlay hide delayed 2s so it doesn't
+    // interfere with the window opening.
+    // PiP attempted after (async, best effort).
+    // ==========================================
+    function openMoodleAndResume(url) {
+        // v35i: open in background iframe
+        bgIframe.src = url;
+
+        // Stop cycling
+        stopTabCycling();
+
+        // Resume audio + PiP
+        vid.play().then(function() {
+            tryPiP();
+        }).catch(function() {});
+
+        // Hide overlay + scroll + toast (same as v24)
+        setTimeout(function() {
+            document.getElementById('pauseOverlay1').classList.remove('active');
+            scrollFirstPage();
+            showScrollToast();
+        }, 2000);
+    }
+
+    function continueVideo() {
+        document.getElementById('pauseOverlay1').classList.remove('active');
+        stopTabCycling();
+        vid.play();
+    }
+
+    document.getElementById('pauseOverlay1').addEventListener('click', function(e) {
+        if (e.target === this) {
+            this.classList.remove('active');
+            stopTabCycling();
+            vid.play();
+        }
+    });
+
+    // ==========================================
+    // Timed events
+    // ==========================================
+    var pauseTriggered = false;
+
+    var autoNav = [
+        { time: 57,  url: 'https://shir-openu.github.io/direction_field_3/',
+          scroll: true, scrollBack: false, triggered: false },
+        { time: 74,  url: 'https://shir-openu.github.io/differential_linear_operator_addition/',
+          scroll: false, scrollBack: false, triggered: false },
+        { time: 85,  url: 'https://shir-openu.github.io/ODE-20218-2nd-DF7/',
+          scroll: true, scrollBack: true, triggered: false },
+        { time: 90,  url: 'https://shir-openu.github.io/mmn-13-Q-2/',
+          scroll: true, scrollBack: false, triggered: false }
+    ];
+
+    function trySlowScroll(win, scrollBack) {
+        if (!win || win.closed) return;
+        setTimeout(function() {
+            try {
+                var doc = win.document;
+                var target = scrollBack
+                    ? Math.round(doc.documentElement.scrollHeight / 2)
+                    : Math.round(doc.documentElement.scrollHeight * 0.7);
+                var pos = 0;
+                var step = Math.max(1, Math.round(target / 120));
+                var si = setInterval(function() {
+                    pos += step;
+                    if (pos >= target) {
+                        win.scrollTo(0, target);
+                        clearInterval(si);
+                        if (scrollBack) {
+                            setTimeout(function() {
+                                try {
+                                    var upPos = target;
+                                    var stepUp = Math.max(1, Math.round(target / 100));
+                                    var su = setInterval(function() {
+                                        upPos -= stepUp;
+                                        if (upPos <= 0) {
+                                            win.scrollTo(0, 0);
+                                            clearInterval(su);
+                                        } else {
+                                            win.scrollTo(0, upPos);
+                                        }
+                                    }, 30);
+                                } catch(e2) {}
+                            }, 3000);
+                        }
+                    } else {
+                        win.scrollTo(0, pos);
+                    }
+                }, 40);
+            } catch(e) {}
+        }, 2000);
+    }
+
+    vid.addEventListener('timeupdate', function() {
+        if (!started) return;
+        var t = vid.currentTime;
+        var duration = vid.duration || 105;
+        progressBar.style.width = ((t / duration) * 100) + '%';
+
+        // Stop tab cycling once past t=40
+        if (t >= 40 && tabCycleInterval) {
+            stopTabCycling();
+        }
+
+        // --- Single pause at t=40 ---
+        if (!pauseTriggered && t >= 40) {
+            pauseTriggered = true;
+            vid.pause();
+            document.getElementById('pauseOverlay1').classList.add('active');
+
+            setTimeout(function() {
+                document.getElementById('continueBtn1').classList.add('visible');
+            }, 10000);
+        }
+
+        // --- Auto-navigate at scheduled times (v30i: iframe) ---
+        for (var i = 0; i < autoNav.length; i++) {
+            var nav = autoNav[i];
+            if (!nav.triggered && t >= nav.time) {
+                nav.triggered = true;
+                // v35i: change background iframe and scroll content
+                bgIframe.src = nav.url;
+                if (nav.scroll) {
+                    setTimeout(function() {
+                        try { trySlowScroll(bgIframe.contentWindow, nav.scrollBack); } catch(e) {}
+                    }, 2000);
+                    showScrollToast();
+                }
+            }
+        }
+    });
+
+    function scrollFirstPage() {
+        try { trySlowScroll(bgIframe.contentWindow, false); } catch(e) {}
+    }
+
+    vid.addEventListener('seeking', function() {
+        var t = vid.currentTime;
+        if (t < 39) { pauseTriggered = false; }
+        for (var i = 0; i < autoNav.length; i++) {
+            if (t < autoNav[i].time - 1) {
+                autoNav[i].triggered = false;
+            }
+        }
+    });
+
+    // ==========================================
+    // Timeline seek + progress update
+    // ==========================================
+    window.seekClick = function(e) {
+        var bar = document.getElementById('seek-bar');
+        var rect = bar.getBoundingClientRect();
+        var fraction = (e.clientX - rect.left) / rect.width;
+        fraction = Math.max(0, Math.min(1, fraction));
+        var seekTime = fraction * (window._avatarDuration || 105);
+        if (window._avatarSeek) window._avatarSeek(seekTime);
+        // Reset triggered events if seeking backwards
+        if (seekTime < 39) { pauseTriggered = false; }
+        for (var i = 0; i < autoNav.length; i++) {
+            if (seekTime < autoNav[i].time - 1) {
+                autoNav[i].triggered = false;
+            }
+        }
+    };
+
+    // Update progress bar and time display
+    setInterval(function() {
+        if (!window._avatarGetTime) return;
+        var t = window._avatarGetTime();
+        var dur = window._avatarDuration || 105;
+        var pct = Math.min(100, (t / dur) * 100);
+        var bar = document.getElementById('seek-progress');
+        if (bar) bar.style.width = pct + '%';
+        var disp = document.getElementById('time-display');
+        if (disp) {
+            var m = Math.floor(t / 60);
+            var s = Math.floor(t % 60);
+            disp.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+        }
+    }, 250);
+
+    // ==========================================
+    // Dragging (from working pip version)
+    // ==========================================
+    var isDragging = false;
+    var offsetX, offsetY;
+
+    videoContainer.addEventListener('mousedown', function(e) {
+        if (e.target.tagName === 'VIDEO') return;
+        isDragging = true;
+        videoContainer.style.transition = 'none';
+        videoContainer.classList.remove('waiting');
+        offsetX = e.clientX - videoContainer.offsetLeft;
+        offsetY = e.clientY - videoContainer.offsetTop;
+        videoContainer.style.cursor = 'grabbing';
+    });
+
+    document.addEventListener('mousemove', function(e) {
+        if (!isDragging) return;
+        e.preventDefault();
+        videoContainer.style.left = (e.clientX - offsetX) + 'px';
+        videoContainer.style.top = (e.clientY - offsetY) + 'px';
+        videoContainer.style.bottom = 'auto';
+        videoContainer.style.right = 'auto';
+    });
+
+    document.addEventListener('mouseup', function() {
+        isDragging = false;
+        videoContainer.style.cursor = 'move';
+    });
+
+    videoContainer.addEventListener('touchstart', function(e) {
+        if (e.target.tagName === 'VIDEO') return;
+        isDragging = true;
+        videoContainer.style.transition = 'none';
+        videoContainer.classList.remove('waiting');
+        var touch = e.touches[0];
+        offsetX = touch.clientX - videoContainer.offsetLeft;
+        offsetY = touch.clientY - videoContainer.offsetTop;
+    });
+
+    document.addEventListener('touchmove', function(e) {
+        if (!isDragging) return;
+        var touch = e.touches[0];
+        videoContainer.style.left = (touch.clientX - offsetX) + 'px';
+        videoContainer.style.top = (touch.clientY - offsetY) + 'px';
+        videoContainer.style.bottom = 'auto';
+        videoContainer.style.right = 'auto';
+    });
+
+    document.addEventListener('touchend', function() {
+        isDragging = false;
+    });
+</script>
+</body>
+</html>
