@@ -711,7 +711,10 @@
 
         stopTabCycling();
 
-        vid.play();
+        // Resume audio + PiP (same as v24)
+        vid.play().then(function() {
+            tryPiP();
+        }).catch(function() {});
 
         setTimeout(function() {
             document.getElementById('pauseOverlay1').classList.remove('active');

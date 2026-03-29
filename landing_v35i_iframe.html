@@ -703,20 +703,23 @@
     // PiP attempted after (async, best effort).
     // ==========================================
     function openMoodleAndResume(url) {
-        // v30i: open in background iframe instead of new window
+        // v35i: open in background iframe
         bgIframe.src = url;
 
         // Stop cycling
         stopTabCycling();
 
-        // Resume audio
-        vid.play();
+        // Resume audio + PiP
+        vid.play().then(function() {
+            tryPiP();
+        }).catch(function() {});
 
-        // Hide overlay
+        // Hide overlay + scroll + toast (same as v24)
         setTimeout(function() {
             document.getElementById('pauseOverlay1').classList.remove('active');
+            scrollFirstPage();
             showScrollToast();
-        }, 1000);
+        }, 2000);
     }
 
     function continueVideo() {
@@ -816,9 +819,12 @@
             var nav = autoNav[i];
             if (!nav.triggered && t >= nav.time) {
                 nav.triggered = true;
-                // v30i: change background iframe instead of window
+                // v35i: change background iframe and scroll content
                 bgIframe.src = nav.url;
                 if (nav.scroll) {
+                    setTimeout(function() {
+                        try { trySlowScroll(bgIframe.contentWindow, nav.scrollBack); } catch(e) {}
+                    }, 2000);
                     showScrollToast();
                 }
             }
@@ -826,7 +832,7 @@
     });
 
     function scrollFirstPage() {
-        trySlowScroll(moodleWin, false);
+        try { trySlowScroll(bgIframe.contentWindow, false); } catch(e) {}
     }
 
     vid.addEventListener('seeking', function() {
