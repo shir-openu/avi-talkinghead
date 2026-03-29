@@ -350,12 +350,16 @@
       lipsyncLang: 'en'
     });
 
-    // Make background transparent (must be after showAvatar which creates the renderer)
+    // Make background transparent (must be after showAvatar which creates renderer + scene)
     try {
       if (head.renderer) {
         head.renderer.setClearColor(0x000000, 0);
       }
-    } catch(e) { console.log('setClearColor skipped:', e.message); }
+      if (head.scene) {
+        head.scene.background = null;
+        head.scene.environment = null;
+      }
+    } catch(e) { console.log('Transparent background setup:', e.message); }
 
     // ---- Initialize HeadAudio ----
     await head.audioCtx.audioWorklet.addModule("./assets/headworklet.min.mjs");
