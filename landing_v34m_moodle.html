@@ -268,7 +268,7 @@
 <div class="pause-overlay" id="pauseOverlay1">
     <div class="pause-popup">
         <h3>שדה כיוונים</h3>
-        <button class="link-btn" onclick="openMoodleAndResume('https://shir-openu.github.io/direction_field_3/')">פתחי את העמוד</button>
+        <button class="link-btn" onclick="openMoodleAndResume('https://opal.openu.ac.il/mod/combopage/view.php?id=6753291&from=nav')">פתחי את העמוד</button>
         <br>
         <button class="continue-btn" id="continueBtn1" onclick="continueVideo()">המשיכי לצפות</button>
     </div>
@@ -337,10 +337,15 @@
     head = new TalkingHead( nodeAvatar, {
       lipsyncModules: ["en"],
       cameraView: "head",
-      cameraRotateEnable: false,  // disabled to prevent conflict with square dragging. Re-enable for future interactive mode.
+      cameraRotateEnable: false,
       cameraPanEnable: false,
-      cameraZoomEnable: false    // disabled to prevent conflict with square dragging. Re-enable for future interactive mode.
+      cameraZoomEnable: false
     });
+
+    // Make background transparent
+    if (head.renderer) {
+      head.renderer.setClearColor(0x000000, 0);
+    }
 
     // Load avatar from local file
     await head.showAvatar({
@@ -380,11 +385,13 @@
     console.log('TalkingHead + HeadAudio ready. Duration:', audioDuration);
 
     // ---- Canvas-to-PiP setup ----
+    // Capture the Three.js canvas as a video stream
+    // Feed into hidden <video> element for PiP support
     try {
       const avatarDiv = document.getElementById('avatar');
       const threeCanvas = avatarDiv.querySelector('canvas');
       if (threeCanvas) {
-        const stream = threeCanvas.captureStream(25);
+        const stream = threeCanvas.captureStream(25); // 25 fps
         const pipVideo = document.getElementById('pip-video');
         pipVideo.srcObject = stream;
         pipVideo.play();
@@ -555,6 +562,7 @@
         }
       },
       requestPictureInPicture: function() {
+        // Use the hidden video element that captures the canvas stream
         var pv = window._pipVideo;
         if (pv && document.pictureInPictureEnabled && !document.pictureInPictureElement) {
           return pv.requestPictureInPicture().catch(function(e) { console.log('PiP failed:', e.message); });
@@ -698,20 +706,18 @@
     // PiP attempted after (async, best effort).
     // ==========================================
     function openMoodleAndResume(url) {
-        // v30i: open in background iframe instead of new window
-        bgIframe.src = url;
+        // v31m: open in new tab (Moodle)
+        moodleWin = window.open(url, 'courseWindow');
 
-        // Stop cycling
         stopTabCycling();
 
-        // Resume audio
         vid.play();
 
-        // Hide overlay
         setTimeout(function() {
             document.getElementById('pauseOverlay1').classList.remove('active');
+            scrollFirstPage();
             showScrollToast();
-        }, 1000);
+        }, 2000);
     }
 
     function continueVideo() {
@@ -734,11 +740,11 @@
     var pauseTriggered = false;
 
     var autoNav = [
-        { time: 57,  url: 'https://shir-openu.github.io/direction_field_3/',
+        { time: 57,  url: 'https://opal.openu.ac.il/mod/combopage/view.php?id=6753296&from=nav',
           scroll: true, scrollBack: false, triggered: false },
-        { time: 74,  url: 'https://shir-openu.github.io/differential_linear_operator_addition/',
+        { time: 74,  url: 'https://opal.openu.ac.il/mod/combopage/view.php?id=6841982&from=nav',
           scroll: false, scrollBack: false, triggered: false },
-        { time: 85,  url: 'https://shir-openu.github.io/ODE-20218-2nd-DF7/',
+        { time: 85,  url: 'https://opal.openu.ac.il/mod/combopage/view.php?id=6856814&from=nav',
           scroll: true, scrollBack: true, triggered: false },
         { time: 90,  url: 'https://shir-openu.github.io/mmn-13-Q-2/',
           scroll: true, scrollBack: false, triggered: false }
@@ -806,15 +812,19 @@
             }, 10000);
         }
 
-        // --- Auto-navigate at scheduled times (v30i: iframe) ---
+        // --- Auto-navigate at scheduled times (v31m: window.open) ---
         for (var i = 0; i < autoNav.length; i++) {
             var nav = autoNav[i];
             if (!nav.triggered && t >= nav.time) {
                 nav.triggered = true;
-                // v30i: change background iframe instead of window
-                bgIframe.src = nav.url;
-                if (nav.scroll) {
-                    showScrollToast();
+                if (moodleWin && !moodleWin.closed) {
+                    try {
+                        moodleWin.location.href = nav.url;
+                        if (nav.scroll) {
+                            trySlowScroll(moodleWin, nav.scrollBack);
+                            showScrollToast();
+                        }
+                    } catch(e) {}
                 }
             }
         }
