@@ -342,11 +342,6 @@
       cameraZoomEnable: false
     });
 
-    // Make background transparent
-    if (head.renderer) {
-      head.renderer.setClearColor(0x000000, 0);
-    }
-
     // Load avatar from local file
     await head.showAvatar({
       url: './assets/brunette.glb',
@@ -354,6 +349,13 @@
       avatarMood: 'neutral',
       lipsyncLang: 'en'
     });
+
+    // Make background transparent (must be after showAvatar which creates the renderer)
+    try {
+      if (head.renderer) {
+        head.renderer.setClearColor(0x000000, 0);
+      }
+    } catch(e) { console.log('setClearColor skipped:', e.message); }
 
     // ---- Initialize HeadAudio ----
     await head.audioCtx.audioWorklet.addModule("./assets/headworklet.min.mjs");
